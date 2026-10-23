@@ -495,19 +495,10 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
                   ),
                 ],
                 const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Tags', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                    InkWell(
-                      onTap: _openEditTagsDialog,
-                      child: const Text('Edit Tags', style: TextStyle(color: Color(0xFF10B981), fontSize: 12, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
+                const Text('Tags', style: TextStyle(color: Colors.white54, fontSize: 12)),
                 const SizedBox(height: 6),
                 if (widget.card.tags.isEmpty)
-                  const Text('No tags. Tap "Edit Tags" to add tags to this card.', style: TextStyle(color: Colors.white30, fontSize: 12))
+                  const Text('No tags assigned.', style: TextStyle(color: Colors.white30, fontSize: 12))
                 else
                   Wrap(
                     spacing: 6,

@@ -138,55 +138,126 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
         onTap: () => _openCardDetail(card),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: const Color(0xFF0F172A),
-                child: Text(
-                  card.symbol.length > 3 ? card.symbol.substring(0, 3) : card.symbol,
-                  style: const TextStyle(
-                    color: Color(0xFF10B981),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      card.symbol,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      card.companyName,
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              // Top row: Symbol, Name, Chevron
+              Row(
                 children: [
-                  Text(
-                    '₹${card.totalInvested.toStringAsFixed(2)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: const Color(0xFF0F172A),
+                    child: Text(
+                      card.symbol.length > 3 ? card.symbol.substring(0, 3) : card.symbol,
+                      style: const TextStyle(
+                        color: Color(0xFF10B981),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${card.totalQuantity % 1 == 0 ? card.totalQuantity.toInt() : card.totalQuantity} Shares',
-                    style: const TextStyle(color: Color(0xFF10B981), fontSize: 12, fontWeight: FontWeight.w600),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          card.symbol,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                        ),
+                        Text(
+                          card.companyName,
+                          style: const TextStyle(color: Colors.white54, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, size: 20, color: Colors.white30),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Divider(height: 1, color: Color(0xFF334155)),
+              const SizedBox(height: 12),
+              // Basic details grid: Total Investment, Realized P/L, Unrealized P/L, Total Dividends
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Total Investment
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Total Investment',
+                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '₹${card.totalInvested.toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                  // Realized P/L
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Realized P/L',
+                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${card.realizedPnL >= 0 ? '+' : ''}₹${card.realizedPnL.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: card.realizedPnL >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Unrealized P/L
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Unrealized P/L',
+                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${card.unrealizedPnL >= 0 ? '+' : ''}₹${card.unrealizedPnL.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: card.unrealizedPnL >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Total Dividends
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text(
+                        'Total Dividends',
+                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '₹${card.totalDividends.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Color(0xFF6366F1),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right, size: 20, color: Colors.white30),
             ],
           ),
         ),

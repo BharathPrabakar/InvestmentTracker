@@ -146,6 +146,53 @@ class InvestmentCardModel {
     return null;
   }
 
+  /// Latest price observed from transactions (last buy/sell price)
+  double get latestPrice {
+    final trades = transactions.where((t) => t.type != TransactionType.dividend).toList();
+    if (trades.isEmpty) return 0.0;
+    trades.sort((a, b) => b.date.compareTo(a.date));
+    return trades.first.price;
+  }
+
+  /// Realized Profit & Loss from closed positions (SELL transactions)
+  /// Uses weighted average cost basis at time of sell
+  double get realizedPnL {
+    final chronological = List<Transaction>.from(transactions)
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    double runningQty = 0.0;
+    double runningCost = 0.0;
+    double realized = 0.0;
+
+    for (final tx in chronological) {
+      if (tx.type == TransactionType.buy) {
+        runningCost += tx.amount;
+        runningQty += tx.quantity;
+      } else if (tx.type == TransactionType.sell) {
+        if (runningQty > 0) {
+          final avgCost = runningCost / runningQty;
+          final costOfSold = avgCost * tx.quantity;
+          realized += (tx.amount - costOfSold);
+          runningQty -= tx.quantity;
+          runningCost -= costOfSold;
+          if (runningQty <= 0) {
+            runningCost = 0.0;
+            runningQty = 0.0;
+          }
+        }
+      }
+    }
+    return realized;
+  }
+
+  /// Unrealized Profit & Loss on currently open holding based on latest price
+  double get unrealizedPnL {
+    if (totalQuantity <= 0) return 0.0;
+    final currentVal = totalQuantity * latestPrice;
+    final costBasis = totalQuantity * avgBuyPrice;
+    return currentVal - costBasis;
+  }
+
   /// Total active quantity calculated from all transactions
   double get totalQuantity {
     double qty = 0.0;
