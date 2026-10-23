@@ -48,6 +48,162 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
     );
   }
 
+  void _openEditTagsDialog() {
+    final tagCtrl = TextEditingController();
+    final currentTags = List<String>.from(widget.card.tags);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          void addTag() {
+            final text = tagCtrl.text.trim().replaceAll('#', '');
+            if (text.isNotEmpty && !currentTags.contains(text)) {
+              setDialogState(() {
+                currentTags.add(text);
+                tagCtrl.clear();
+              });
+            }
+          }
+
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            title: Text('Edit Tags (${widget.card.symbol})', style: const TextStyle(color: Colors.white)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: tagCtrl,
+                          onSubmitted: (_) => addTag(),
+                          decoration: const InputDecoration(
+                            hintText: 'Add new tag...',
+                            filled: true,
+                            fillColor: Color(0xFF0F172A),
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filled(
+                        style: IconButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                        icon: const Icon(Icons.add, color: Colors.white),
+                        onPressed: addTag,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (currentTags.isEmpty)
+                    const Text('No tags assigned.', style: TextStyle(color: Colors.white38, fontSize: 13))
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: currentTags
+                          .map(
+                            (tag) => Chip(
+                              backgroundColor: const Color(0xFF0F172A),
+                              label: Text('#$tag', style: const TextStyle(color: Colors.white)),
+                              deleteIcon: const Icon(Icons.close, size: 16, color: Colors.white70),
+                              onDeleted: () {
+                                setDialogState(() {
+                                  currentTags.remove(tag);
+                                });
+                              },
+                            ),
+                          )
+                          .toList(),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                onPressed: () {
+                  setState(() {
+                    widget.card.tags
+                      ..clear()
+                      ..addAll(currentTags);
+                  });
+                  widget.onStateChanged();
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Save Tags', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _openEditTransactionModal(Transaction tx, int originalIndex) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => TransactionFormSheet(
+        card: widget.card,
+        initialTransaction: tx,
+        onTransactionSaved: (updatedTx) {
+          // Re-verify entire transaction history with updated transaction
+          final candidateList = List<Transaction>.from(widget.card.transactions);
+          candidateList[originalIndex] = updatedTx;
+
+          final error = InvestmentCardModel.validateTransactions(candidateList);
+          if (error != null) {
+            showDialog(
+              context: context,
+              builder: (dCtx) => AlertDialog(
+                backgroundColor: const Color(0xFF1E293B),
+                title: const Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Color(0xFFEF4444)),
+                    SizedBox(width: 8),
+                    Text('Invalid Edit', style: TextStyle(color: Colors.white, fontSize: 16)),
+                  ],
+                ),
+                content: Text(error, style: const TextStyle(color: Colors.white70)),
+                actions: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                    onPressed: () => Navigator.pop(dCtx),
+                    child: const Text('OK', style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            );
+            return;
+          }
+
+          setState(() {
+            widget.card.transactions[originalIndex] = updatedTx;
+            // Complete zero-fault recalculation
+            final recalculated = InvestmentCardModel.recalculateAllTransactions(widget.card.transactions);
+            widget.card.transactions
+              ..clear()
+              ..addAll(recalculated);
+          });
+          widget.onStateChanged();
+          Navigator.pop(ctx);
+        },
+      ),
+    );
+  }
+
   void _attemptDeleteTransaction(Transaction tx, int originalIndex) {
     final candidateList = List<Transaction>.from(widget.card.transactions);
     candidateList.removeAt(originalIndex);
@@ -71,9 +227,9 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
               onPressed: () {
-                Navigator.pop(ctx); // Close dialog
+                Navigator.pop(ctx);
                 widget.onCardDeleted();
-                Navigator.pop(context); // Exit detail screen
+                Navigator.pop(context);
               },
               child: const Text('Delete Card', style: TextStyle(color: Colors.white)),
             ),
@@ -133,7 +289,6 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
             onPressed: () {
               setState(() {
                 widget.card.transactions.removeAt(originalIndex);
-                // Complete recalculation of entire history for no fault
                 final recalculated = InvestmentCardModel.recalculateAllTransactions(widget.card.transactions);
                 widget.card.transactions
                   ..clear()
@@ -157,18 +312,46 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => AddTransactionSheet(
+      builder: (ctx) => TransactionFormSheet(
         card: widget.card,
-        onTransactionAdded: (tx) {
+        onTransactionSaved: (tx) {
+          final candidateList = List<Transaction>.from(widget.card.transactions)..add(tx);
+          final validationError = InvestmentCardModel.validateTransactions(candidateList);
+
+          if (validationError != null) {
+            showDialog(
+              context: context,
+              builder: (dCtx) => AlertDialog(
+                backgroundColor: const Color(0xFF1E293B),
+                title: const Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Color(0xFFEF4444)),
+                    SizedBox(width: 8),
+                    Text('Transaction Error', style: TextStyle(color: Colors.white, fontSize: 16)),
+                  ],
+                ),
+                content: Text(validationError, style: const TextStyle(color: Colors.white70)),
+                actions: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                    onPressed: () => Navigator.pop(dCtx),
+                    child: const Text('OK', style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            );
+            return;
+          }
+
           setState(() {
             widget.card.transactions.add(tx);
-            // Recalculate entire history for no fault
             final recalculated = InvestmentCardModel.recalculateAllTransactions(widget.card.transactions);
             widget.card.transactions
               ..clear()
               ..addAll(recalculated);
           });
           widget.onStateChanged();
+          Navigator.pop(ctx);
         },
       ),
     );
@@ -185,6 +368,11 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.label_outline, color: Color(0xFF10B981)),
+            tooltip: 'Edit Tags',
+            onPressed: _openEditTagsDialog,
+          ),
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444)),
             tooltip: 'Delete Card',
@@ -306,8 +494,21 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
                     ],
                   ),
                 ],
-                if (widget.card.tags.isNotEmpty) ...[
-                  const SizedBox(height: 16),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Tags', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                    InkWell(
+                      onTap: _openEditTagsDialog,
+                      child: const Text('Edit Tags', style: TextStyle(color: Color(0xFF10B981), fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (widget.card.tags.isEmpty)
+                  const Text('No tags. Tap "Edit Tags" to add tags to this card.', style: TextStyle(color: Colors.white30, fontSize: 12))
+                else
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
@@ -328,7 +529,6 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
                         )
                         .toList(),
                   ),
-                ],
               ],
             ),
           ),
@@ -343,7 +543,7 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
               ),
               const Text(
-                'Date-wise ledger',
+                'Tap pencil to edit',
                 style: TextStyle(fontSize: 12, color: Colors.white38),
               ),
             ],
@@ -399,35 +599,41 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          dateStr,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          isDividend
-                              ? '${tx.quantity % 1 == 0 ? tx.quantity.toInt() : tx.quantity} eligible shares @ ₹${tx.price.toStringAsFixed(2)} DPS'
-                              : '${tx.quantity % 1 == 0 ? tx.quantity.toInt() : tx.quantity} shares @ ₹${tx.price.toStringAsFixed(2)}',
-                          style: const TextStyle(fontSize: 11, color: Colors.white54),
-                        ),
-                        if (isDividend && tx.exDividendDate != null) ...[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            dateStr,
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white),
+                          ),
                           const SizedBox(height: 2),
                           Text(
-                            'Ex-Date: ${DateFormat('dd MMM yyyy').format(tx.exDividendDate!)}',
-                            style: const TextStyle(fontSize: 10, color: Color(0xFF6366F1)),
+                            isDividend
+                                ? '${tx.quantity % 1 == 0 ? tx.quantity.toInt() : tx.quantity} eligible shares @ ₹${tx.price.toStringAsFixed(2)} DPS'
+                                : '${tx.quantity % 1 == 0 ? tx.quantity.toInt() : tx.quantity} shares @ ₹${tx.price.toStringAsFixed(2)}',
+                            style: const TextStyle(fontSize: 11, color: Colors.white54),
                           ),
+                          if (isDividend && tx.exDividendDate != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Ex-Date: ${DateFormat('dd MMM yyyy').format(tx.exDividendDate!)}',
+                              style: const TextStyle(fontSize: 10, color: Color(0xFF6366F1)),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                    const Spacer(),
                     Text(
                       '₹${tx.amount.toStringAsFixed(2)}',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.white54),
+                      tooltip: 'Edit transaction',
+                      onPressed: () => _openEditTransactionModal(tx, originalIndex),
+                    ),
                     IconButton(
                       icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white38),
                       tooltip: 'Delete transaction',
@@ -444,21 +650,27 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
   }
 }
 
-class AddTransactionSheet extends StatefulWidget {
+class TransactionFormSheet extends StatefulWidget {
   final InvestmentCardModel card;
-  final Function(Transaction) onTransactionAdded;
+  final Transaction? initialTransaction;
+  final Function(Transaction) onTransactionSaved;
 
-  const AddTransactionSheet({super.key, required this.card, required this.onTransactionAdded});
+  const TransactionFormSheet({
+    super.key,
+    required this.card,
+    this.initialTransaction,
+    required this.onTransactionSaved,
+  });
 
   @override
-  State<AddTransactionSheet> createState() => _AddTransactionSheetState();
+  State<TransactionFormSheet> createState() => _TransactionFormSheetState();
 }
 
-class _AddTransactionSheetState extends State<AddTransactionSheet> {
-  TransactionType _type = TransactionType.buy;
-  DateTime _date = DateTime.now(); // For Trade: transaction date. For Dividend: payment date.
-  DateTime _exDividendDate = DateTime.now(); // For Dividend: ex-dividend cutoff date.
-  final TextEditingController _priceCtrl = TextEditingController(); // Buy/Sell price or DPS
+class _TransactionFormSheetState extends State<TransactionFormSheet> {
+  late TransactionType _type;
+  late DateTime _date;
+  late DateTime _exDividendDate;
+  final TextEditingController _priceCtrl = TextEditingController();
   final TextEditingController _qtyCtrl = TextEditingController();
   final TextEditingController _amountCtrl = TextEditingController();
 
@@ -467,7 +679,23 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   @override
   void initState() {
     super.initState();
-    _recomputeDividendEligibility();
+    final init = widget.initialTransaction;
+    if (init != null) {
+      _type = init.type;
+      _date = init.date;
+      _exDividendDate = init.exDividendDate ?? init.date;
+      _priceCtrl.text = init.price.toStringAsFixed(2);
+      _qtyCtrl.text = init.quantity % 1 == 0 ? init.quantity.toInt().toString() : init.quantity.toString();
+      _amountCtrl.text = init.amount.toStringAsFixed(2);
+      if (_type == TransactionType.dividend) {
+        _recomputeDividendEligibility();
+      }
+    } else {
+      _type = TransactionType.buy;
+      _date = DateTime.now();
+      _exDividendDate = DateTime.now();
+      _recomputeDividendEligibility();
+    }
   }
 
   @override
@@ -480,8 +708,13 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
 
   void _recomputeDividendEligibility() {
     if (_type == TransactionType.dividend) {
+      // Create list excluding the transaction being edited (if editing) to determine true prior holding
+      final historyToEvaluate = widget.initialTransaction != null
+          ? widget.card.transactions.where((t) => t.id != widget.initialTransaction!.id).toList()
+          : widget.card.transactions;
+
       final eligible = InvestmentCardModel.getEligibleQuantityOnDate(
-        widget.card.transactions,
+        historyToEvaluate,
         _exDividendDate,
       );
       setState(() {
@@ -539,7 +772,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
 
     if (_type == TransactionType.dividend) {
-      // Dividend validation: DPS > 0, eligible qty > 0, ex-date <= payment date
       if (price <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please enter a valid dividend per share (DPS)')),
@@ -554,7 +786,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
             backgroundColor: const Color(0xFF1E293B),
             title: const Text('Dividend Ineligible', style: TextStyle(color: Colors.white)),
             content: Text(
-              'No eligible stock holding found for ${widget.card.symbol} on ex-dividend date (${DateFormat('dd MMM yyyy').format(_exDividendDate)}). Dividends cannot exist without active stock holdings on the ex-date.',
+              'No eligible stock holding found for ${widget.card.symbol} prior to ex-dividend date (${DateFormat('dd MMM yyyy').format(_exDividendDate)}). Shares purchased on or after ex-date are not eligible.',
               style: const TextStyle(color: Colors.white70),
             ),
             actions: [
@@ -570,18 +802,17 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       }
 
       final dividendAmount = price * _autoEligibleQty;
-      final candidateTx = Transaction(
-        id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
+      final tx = Transaction(
+        id: widget.initialTransaction?.id ?? 'tx_${DateTime.now().millisecondsSinceEpoch}',
         type: TransactionType.dividend,
         date: _date,
-        price: price, // DPS
-        quantity: _autoEligibleQty, // auto-calculated
-        amount: dividendAmount, // auto-calculated
+        price: price,
+        quantity: _autoEligibleQty,
+        amount: dividendAmount,
         exDividendDate: _exDividendDate,
       );
 
-      widget.onTransactionAdded(candidateTx);
-      Navigator.pop(context);
+      widget.onTransactionSaved(tx);
       return;
     }
 
@@ -596,8 +827,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       return;
     }
 
-    final candidateTx = Transaction(
-      id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
+    final tx = Transaction(
+      id: widget.initialTransaction?.id ?? 'tx_${DateTime.now().millisecondsSinceEpoch}',
       type: _type,
       date: _date,
       price: price,
@@ -605,42 +836,13 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       amount: amount,
     );
 
-    // Re-verify entire candidate history chronologically
-    final candidateList = List<Transaction>.from(widget.card.transactions)..add(candidateTx);
-    final validationError = InvestmentCardModel.validateTransactions(candidateList);
-
-    if (validationError != null) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
-          title: const Row(
-            children: [
-              Icon(Icons.error_outline, color: Color(0xFFEF4444)),
-              SizedBox(width: 8),
-              Text('Transaction Error', style: TextStyle(color: Colors.white, fontSize: 16)),
-            ],
-          ),
-          content: Text(validationError, style: const TextStyle(color: Colors.white70)),
-          actions: [
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    widget.onTransactionAdded(candidateTx);
-    Navigator.pop(context);
+    widget.onTransactionSaved(tx);
   }
 
   @override
   Widget build(BuildContext context) {
     final isDividend = _type == TransactionType.dividend;
+    final isEditing = widget.initialTransaction != null;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -658,7 +860,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Add Transaction (${widget.card.symbol})',
+                  isEditing
+                      ? 'Edit Transaction (${widget.card.symbol})'
+                      : 'Add Transaction (${widget.card.symbol})',
                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
                 IconButton(
@@ -688,9 +892,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
 
             // DIVIDEND FLOW: Ex-Dividend Date + Payment Date + DPS + Auto Eligible Shares
             if (isDividend) ...[
-              // Ex-Dividend Date selector
               const Text(
-                'Ex-Dividend Date (Holding Cutoff)',
+                'Ex-Dividend Date (Holding Cutoff - On Ex-Date is NOT eligible)',
                 style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 6),
@@ -710,7 +913,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               ),
               const SizedBox(height: 12),
 
-              // Payment Date selector
               const Text(
                 'Payment Date',
                 style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
@@ -732,7 +934,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               ),
               const SizedBox(height: 12),
 
-              // Dividend Per Share (DPS)
               TextField(
                 controller: _priceCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -747,7 +948,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               ),
               const SizedBox(height: 12),
 
-              // Automatically Calculated Eligible Quantity Box
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -764,7 +964,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Eligible Shares on Ex-Date',
+                          'Eligible Shares (Held Before Ex-Date)',
                           style: TextStyle(color: Colors.white60, fontSize: 11),
                         ),
                         const SizedBox(height: 2),
@@ -780,7 +980,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                     ),
                     if (_autoEligibleQty <= 0)
                       const Text(
-                        '0 holding on ex-date',
+                        '0 holding before ex-date',
                         style: TextStyle(color: Color(0xFFEF4444), fontSize: 11),
                       ),
                   ],
@@ -788,7 +988,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               ),
               const SizedBox(height: 12),
 
-              // Automatically Calculated Total Dividend Payout
               TextField(
                 controller: _amountCtrl,
                 readOnly: true,
@@ -801,7 +1000,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               ),
             ] else ...[
               // TRADE FLOW: BUY / SELL
-              // Date picker
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 46),
@@ -818,7 +1016,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               ),
               const SizedBox(height: 12),
 
-              // Price & Quantity
               Row(
                 children: [
                   Expanded(
@@ -852,7 +1049,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               ),
               const SizedBox(height: 12),
 
-              // Total Amount
               TextField(
                 controller: _amountCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -876,7 +1072,10 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: _submit,
-                child: const Text('Add Transaction', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                child: Text(
+                  isEditing ? 'Save Changes' : 'Add Transaction',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ],

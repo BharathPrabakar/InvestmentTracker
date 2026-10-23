@@ -67,15 +67,15 @@ class InvestmentCardModel {
     required this.transactions,
   });
 
-  /// Calculates eligible stock quantity held on or before a given ex-dividend date
+  /// Calculates eligible stock quantity held strictly BEFORE the ex-dividend date.
+  /// (Shares purchased ON the ex-dividend date are NOT eligible for dividend).
   static double getEligibleQuantityOnDate(List<Transaction> txList, DateTime exDate) {
-    // Only transactions on or strictly before the ex-dividend date count toward dividend eligibility
     final relevantTrades = txList.where((tx) {
       if (tx.type == TransactionType.dividend) return false;
-      // Truncate to day level comparison
+      // Truncate to day level comparison: must be strictly before ex-dividend date
       final txDay = DateTime(tx.date.year, tx.date.month, tx.date.day);
       final exDay = DateTime(exDate.year, exDate.month, exDate.day);
-      return !txDay.isAfter(exDay);
+      return txDay.isBefore(exDay);
     }).toList()
       ..sort((a, b) => a.date.compareTo(b.date));
 
