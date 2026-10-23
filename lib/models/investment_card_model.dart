@@ -34,7 +34,7 @@ class InvestmentCardModel {
   final String symbol;
   final String companyName;
   final List<String> tags;
-  final List<Transaction> transactions; // stored date-wise
+  final List<Transaction> transactions;
 
   const InvestmentCardModel({
     required this.id,
@@ -43,6 +43,36 @@ class InvestmentCardModel {
     required this.tags,
     required this.transactions,
   });
+
+  /// Chronological verification of all transactions to guarantee:
+  /// 1. No SELL occurs before any BUY.
+  /// 2. Active holding quantity is never negative at any historical point in time.
+  static String? validateTransactions(List<Transaction> txList) {
+    if (txList.isEmpty) return null;
+
+    // Sort chronologically (oldest to newest) to replay history
+    final chronological = List<Transaction>.from(txList)
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    double runningQty = 0.0;
+    bool hasHadBuy = false;
+
+    for (final tx in chronological) {
+      if (tx.type == TransactionType.buy) {
+        hasHadBuy = true;
+        runningQty += tx.quantity;
+      } else if (tx.type == TransactionType.sell) {
+        if (!hasHadBuy) {
+          return 'Invalid transaction order: Cannot sell before any buy transaction has occurred.';
+        }
+        if (runningQty < tx.quantity) {
+          return 'Insufficient shares: Cannot sell ${tx.quantity} shares on ${tx.date.toString().substring(0, 10)}. You only hold $runningQty shares at that date.';
+        }
+        runningQty -= tx.quantity;
+      }
+    }
+    return null;
+  }
 
   /// Total active quantity calculated from all transactions
   double get totalQuantity {

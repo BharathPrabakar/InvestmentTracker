@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/investment_card_model.dart';
-import 'investments_screen.dart';
 
 class InvestmentCardDetailScreen extends StatefulWidget {
   final InvestmentCardModel card;
@@ -38,9 +37,9 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
             onPressed: () {
-              Navigator.pop(ctx); // Close dialog
+              Navigator.pop(ctx);
               widget.onCardDeleted();
-              Navigator.pop(context); // Go back to investment list
+              Navigator.pop(context);
             },
             child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
@@ -49,7 +48,41 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
     );
   }
 
-  void _confirmDeleteTransaction(int index) {
+  void _attemptDeleteTransaction(Transaction tx, int originalIndex) {
+    // Re-verify: construct test list without this transaction and validate
+    final candidateList = List<Transaction>.from(widget.card.transactions);
+    candidateList.removeAt(originalIndex);
+
+    final error = InvestmentCardModel.validateTransactions(candidateList);
+    if (error != null) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444)),
+              SizedBox(width: 8),
+              Text('Cannot Delete Transaction', style: TextStyle(color: Colors.white, fontSize: 16)),
+            ],
+          ),
+          content: Text(
+            'Deleting this buy transaction breaks chronological integrity:\n\n$error',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Understood', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Confirm deletion
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -68,7 +101,7 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
             onPressed: () {
               setState(() {
-                widget.card.transactions.removeAt(index);
+                widget.card.transactions.removeAt(originalIndex);
               });
               widget.onStateChanged();
               Navigator.pop(ctx);
@@ -256,8 +289,8 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
               ),
               const Text(
-                'Swipe or tap bin to delete',
-                style: TextStyle(fontSize: 11, color: Colors.white38),
+                'Date-wise ledger',
+                style: TextStyle(fontSize: 12, color: Colors.white38),
               ),
             ],
           ),
@@ -274,94 +307,315 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
               ),
             )
           else
-            ...transactions.asMap().entries.map((entry) {
-              final txIndex = widget.card.transactions.indexOf(entry.value);
-              final tx = entry.value;
+            ...transactions.map((tx) {
+              final originalIndex = widget.card.transactions.indexOf(tx);
               final isBuy = tx.type == TransactionType.buy;
               final isSell = tx.type == TransactionType.sell;
               final dateStr = DateFormat('MMM dd, yyyy').format(tx.date);
 
-              return Dismissible(
-                key: Key(tx.id),
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 16),
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEF4444),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.delete_outline, color: Colors.white),
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF334155)),
                 ),
-                onDismissed: (_) {
-                  setState(() {
-                    widget.card.transactions.remove(tx);
-                  });
-                  widget.onStateChanged();
-                },
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF334155)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: (isBuy
-                                  ? const Color(0xFF10B981)
-                                  : (isSell ? const Color(0xFFEF4444) : const Color(0xFF6366F1)))
-                              .withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          tx.typeLabel,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: isBuy
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: (isBuy
                                 ? const Color(0xFF10B981)
-                                : (isSell ? const Color(0xFFEF4444) : const Color(0xFF6366F1)),
-                          ),
+                                : (isSell ? const Color(0xFFEF4444) : const Color(0xFF6366F1)))
+                            .withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        tx.typeLabel,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isBuy
+                              ? const Color(0xFF10B981)
+                              : (isSell ? const Color(0xFFEF4444) : const Color(0xFF6366F1)),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            dateStr,
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${tx.quantity % 1 == 0 ? tx.quantity.toInt() : tx.quantity} shares @ \$${tx.price.toStringAsFixed(2)}',
-                            style: const TextStyle(fontSize: 11, color: Colors.white54),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Text(
-                        '\$${tx.amount.toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white38),
-                        onPressed: () => _confirmDeleteTransaction(txIndex),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          dateStr,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${tx.quantity % 1 == 0 ? tx.quantity.toInt() : tx.quantity} shares @ \$${tx.price.toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 11, color: Colors.white54),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Text(
+                      '\$${tx.amount.toStringAsFixed(2)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white38),
+                      tooltip: 'Delete transaction',
+                      onPressed: () => _attemptDeleteTransaction(tx, originalIndex),
+                    ),
+                  ],
                 ),
               );
             }),
           const SizedBox(height: 80),
         ],
+      ),
+    );
+  }
+}
+
+class AddTransactionSheet extends StatefulWidget {
+  final InvestmentCardModel card;
+  final Function(Transaction) onTransactionAdded;
+
+  const AddTransactionSheet({super.key, required this.card, required this.onTransactionAdded});
+
+  @override
+  State<AddTransactionSheet> createState() => _AddTransactionSheetState();
+}
+
+class _AddTransactionSheetState extends State<AddTransactionSheet> {
+  TransactionType _type = TransactionType.buy;
+  DateTime _date = DateTime.now();
+  final TextEditingController _priceCtrl = TextEditingController();
+  final TextEditingController _qtyCtrl = TextEditingController();
+  final TextEditingController _amountCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _priceCtrl.dispose();
+    _qtyCtrl.dispose();
+    _amountCtrl.dispose();
+    super.dispose();
+  }
+
+  void _calculateAmount() {
+    final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
+    final qty = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
+    if (price > 0 && qty > 0) {
+      _amountCtrl.text = (price * qty).toStringAsFixed(2);
+    }
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      builder: (context, child) => Theme(
+        data: ThemeData.dark().copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFF10B981),
+            surface: Color(0xFF1E293B),
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      setState(() {
+        _date = picked;
+      });
+    }
+  }
+
+  void _submit() {
+    final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
+    final qty = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
+    final amount = double.tryParse(_amountCtrl.text.trim()) ?? (price * qty);
+
+    if (amount <= 0 || (_type != TransactionType.dividend && (price <= 0 || qty <= 0))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter valid transaction numbers')),
+      );
+      return;
+    }
+
+    final candidateTx = Transaction(
+      id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
+      type: _type,
+      date: _date,
+      price: price,
+      quantity: qty,
+      amount: amount,
+    );
+
+    // Re-verify candidate transaction list chronologically
+    final candidateList = List<Transaction>.from(widget.card.transactions)..add(candidateTx);
+    final validationError = InvestmentCardModel.validateTransactions(candidateList);
+
+    if (validationError != null) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Row(
+            children: [
+              Icon(Icons.error_outline, color: Color(0xFFEF4444)),
+              SizedBox(width: 8),
+              Text('Transaction Error', style: TextStyle(color: Colors.white, fontSize: 16)),
+            ],
+          ),
+          content: Text(validationError, style: const TextStyle(color: Colors.white70)),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    widget.onTransactionAdded(candidateTx);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Add Transaction (${widget.card.symbol})',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white54),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Transaction Type Selector
+            SegmentedButton<TransactionType>(
+              segments: const [
+                ButtonSegment(value: TransactionType.buy, label: Text('BUY')),
+                ButtonSegment(value: TransactionType.sell, label: Text('SELL')),
+                ButtonSegment(value: TransactionType.dividend, label: Text('DIVIDEND')),
+              ],
+              selected: {_type},
+              onSelectionChanged: (set) {
+                setState(() {
+                  _type = set.first;
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // Date picker
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 46),
+                side: const BorderSide(color: Color(0xFF334155)),
+                backgroundColor: const Color(0xFF0F172A),
+              ),
+              onPressed: _pickDate,
+              icon: const Icon(Icons.calendar_today, size: 16, color: Colors.white70),
+              label: Text(
+                DateFormat('dd MMM yyyy').format(_date),
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Price & Quantity (if not dividend)
+            if (_type != TransactionType.dividend) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _priceCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) => _calculateAmount(),
+                      decoration: const InputDecoration(
+                        labelText: 'Price (\$)',
+                        filled: true,
+                        fillColor: Color(0xFF0F172A),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _qtyCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) => _calculateAmount(),
+                      decoration: const InputDecoration(
+                        labelText: 'Quantity',
+                        filled: true,
+                        fillColor: Color(0xFF0F172A),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // Total Amount
+            TextField(
+              controller: _amountCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: _type == TransactionType.dividend
+                    ? 'Dividend Payout Amount (\$)'
+                    : 'Total Transaction Amount (\$)',
+                filled: true,
+                fillColor: const Color(0xFF0F172A),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: _submit,
+                child: const Text('Add Transaction', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
