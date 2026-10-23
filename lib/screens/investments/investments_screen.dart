@@ -78,7 +78,9 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
             });
           },
           onStateChanged: () {
-            setState(() {});
+            setState(() {
+              _investmentCards.removeWhere((c) => c.transactions.isEmpty);
+            });
           },
         ),
       ),

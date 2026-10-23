@@ -49,10 +49,41 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
   }
 
   void _attemptDeleteTransaction(Transaction tx, int originalIndex) {
-    // Re-verify: construct test list without this transaction and validate
     final candidateList = List<Transaction>.from(widget.card.transactions);
     candidateList.removeAt(originalIndex);
 
+    // Rule: If candidate list becomes empty, the card should not exist!
+    if (candidateList.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Text('Delete Last Transaction?', style: TextStyle(color: Colors.white)),
+          content: const Text(
+            'A card cannot exist without any transactions. Deleting this last transaction will delete the entire investment card. Proceed?',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+              onPressed: () {
+                Navigator.pop(ctx); // Close dialog
+                widget.onCardDeleted();
+                Navigator.pop(context); // Exit detail screen
+              },
+              child: const Text('Delete Card', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Re-verify entire transaction history after deletion
     final error = InvestmentCardModel.validateTransactions(candidateList);
     if (error != null) {
       showDialog(
@@ -67,7 +98,7 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
             ],
           ),
           content: Text(
-            'Deleting this buy transaction breaks chronological integrity:\n\n$error',
+            'Deleting this transaction breaks chronological integrity or dividend eligibility:\n\n$error',
             style: const TextStyle(color: Colors.white70),
           ),
           actions: [
@@ -82,14 +113,14 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
       return;
     }
 
-    // Confirm deletion
+    // Confirm deletion and recalculate for zero fault
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
         title: const Text('Delete Transaction?', style: TextStyle(color: Colors.white)),
         content: const Text(
-          'Are you sure you want to delete this transaction entry?',
+          'Are you sure you want to delete this transaction entry? All dividend and portfolio values will be recalculated.',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -102,6 +133,11 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
             onPressed: () {
               setState(() {
                 widget.card.transactions.removeAt(originalIndex);
+                // Complete recalculation of entire history for no fault
+                final recalculated = InvestmentCardModel.recalculateAllTransactions(widget.card.transactions);
+                widget.card.transactions
+                  ..clear()
+                  ..addAll(recalculated);
               });
               widget.onStateChanged();
               Navigator.pop(ctx);
@@ -126,6 +162,11 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
         onTransactionAdded: (tx) {
           setState(() {
             widget.card.transactions.add(tx);
+            // Recalculate entire history for no fault
+            final recalculated = InvestmentCardModel.recalculateAllTransactions(widget.card.transactions);
+            widget.card.transactions
+              ..clear()
+              ..addAll(recalculated);
           });
           widget.onStateChanged();
         },
@@ -252,6 +293,19 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
                     ),
                   ],
                 ),
+                if (widget.card.totalDividends > 0) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total Dividends Received', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                      Text(
+                        '₹${widget.card.totalDividends.toStringAsFixed(2)}',
+                        style: const TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ],
                 if (widget.card.tags.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Wrap(
@@ -311,6 +365,7 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
               final originalIndex = widget.card.transactions.indexOf(tx);
               final isBuy = tx.type == TransactionType.buy;
               final isSell = tx.type == TransactionType.sell;
+              final isDividend = tx.type == TransactionType.dividend;
               final dateStr = DateFormat('MMM dd, yyyy').format(tx.date);
 
               return Container(
@@ -353,9 +408,18 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${tx.quantity % 1 == 0 ? tx.quantity.toInt() : tx.quantity} shares @ ₹${tx.price.toStringAsFixed(2)}',
+                          isDividend
+                              ? '${tx.quantity % 1 == 0 ? tx.quantity.toInt() : tx.quantity} eligible shares @ ₹${tx.price.toStringAsFixed(2)} DPS'
+                              : '${tx.quantity % 1 == 0 ? tx.quantity.toInt() : tx.quantity} shares @ ₹${tx.price.toStringAsFixed(2)}',
                           style: const TextStyle(fontSize: 11, color: Colors.white54),
                         ),
+                        if (isDividend && tx.exDividendDate != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Ex-Date: ${DateFormat('dd MMM yyyy').format(tx.exDividendDate!)}',
+                            style: const TextStyle(fontSize: 10, color: Color(0xFF6366F1)),
+                          ),
+                        ],
                       ],
                     ),
                     const Spacer(),
@@ -392,10 +456,19 @@ class AddTransactionSheet extends StatefulWidget {
 
 class _AddTransactionSheetState extends State<AddTransactionSheet> {
   TransactionType _type = TransactionType.buy;
-  DateTime _date = DateTime.now();
-  final TextEditingController _priceCtrl = TextEditingController();
+  DateTime _date = DateTime.now(); // For Trade: transaction date. For Dividend: payment date.
+  DateTime _exDividendDate = DateTime.now(); // For Dividend: ex-dividend cutoff date.
+  final TextEditingController _priceCtrl = TextEditingController(); // Buy/Sell price or DPS
   final TextEditingController _qtyCtrl = TextEditingController();
   final TextEditingController _amountCtrl = TextEditingController();
+
+  double _autoEligibleQty = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _recomputeDividendEligibility();
+  }
 
   @override
   void dispose() {
@@ -405,20 +478,41 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     super.dispose();
   }
 
-  void _calculateAmount() {
-    final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
-    final qty = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
-    if (price > 0 && qty > 0) {
-      _amountCtrl.text = (price * qty).toStringAsFixed(2);
+  void _recomputeDividendEligibility() {
+    if (_type == TransactionType.dividend) {
+      final eligible = InvestmentCardModel.getEligibleQuantityOnDate(
+        widget.card.transactions,
+        _exDividendDate,
+      );
+      setState(() {
+        _autoEligibleQty = eligible;
+        _qtyCtrl.text = eligible % 1 == 0 ? eligible.toInt().toString() : eligible.toString();
+      });
+      _calculateAmount();
     }
   }
 
-  Future<void> _pickDate() async {
+  void _calculateAmount() {
+    final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
+    if (_type == TransactionType.dividend) {
+      if (price > 0 && _autoEligibleQty > 0) {
+        _amountCtrl.text = (price * _autoEligibleQty).toStringAsFixed(2);
+      }
+    } else {
+      final qty = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
+      if (price > 0 && qty > 0) {
+        _amountCtrl.text = (price * qty).toStringAsFixed(2);
+      }
+    }
+  }
+
+  Future<void> _pickDate({required bool isExDate}) async {
+    final initial = isExDate ? _exDividendDate : _date;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _date,
+      initialDate: initial,
       firstDate: DateTime(2000),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (context, child) => Theme(
         data: ThemeData.dark().copyWith(
           colorScheme: const ColorScheme.dark(
@@ -431,17 +525,71 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     );
     if (picked != null) {
       setState(() {
-        _date = picked;
+        if (isExDate) {
+          _exDividendDate = picked;
+          _recomputeDividendEligibility();
+        } else {
+          _date = picked;
+        }
       });
     }
   }
 
   void _submit() {
     final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
+
+    if (_type == TransactionType.dividend) {
+      // Dividend validation: DPS > 0, eligible qty > 0, ex-date <= payment date
+      if (price <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a valid dividend per share (DPS)')),
+        );
+        return;
+      }
+
+      if (_autoEligibleQty <= 0) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            title: const Text('Dividend Ineligible', style: TextStyle(color: Colors.white)),
+            content: Text(
+              'No eligible stock holding found for ${widget.card.symbol} on ex-dividend date (${DateFormat('dd MMM yyyy').format(_exDividendDate)}). Dividends cannot exist without active stock holdings on the ex-date.',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      final dividendAmount = price * _autoEligibleQty;
+      final candidateTx = Transaction(
+        id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
+        type: TransactionType.dividend,
+        date: _date,
+        price: price, // DPS
+        quantity: _autoEligibleQty, // auto-calculated
+        amount: dividendAmount, // auto-calculated
+        exDividendDate: _exDividendDate,
+      );
+
+      widget.onTransactionAdded(candidateTx);
+      Navigator.pop(context);
+      return;
+    }
+
+    // Trade (BUY / SELL) validation
     final qty = double.tryParse(_qtyCtrl.text.trim()) ?? 0.0;
     final amount = double.tryParse(_amountCtrl.text.trim()) ?? (price * qty);
 
-    if (amount <= 0 || (_type != TransactionType.dividend && (price <= 0 || qty <= 0))) {
+    if (price <= 0 || qty <= 0 || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter valid transaction numbers')),
       );
@@ -457,7 +605,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       amount: amount,
     );
 
-    // Re-verify candidate transaction list chronologically
+    // Re-verify entire candidate history chronologically
     final candidateList = List<Transaction>.from(widget.card.transactions)..add(candidateTx);
     final validationError = InvestmentCardModel.validateTransactions(candidateList);
 
@@ -492,6 +640,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDividend = _type == TransactionType.dividend;
+
     return Padding(
       padding: EdgeInsets.only(
         left: 20,
@@ -531,28 +681,144 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 setState(() {
                   _type = set.first;
                 });
+                _recomputeDividendEligibility();
               },
             ),
             const SizedBox(height: 16),
 
-            // Date picker
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 46),
-                side: const BorderSide(color: Color(0xFF334155)),
-                backgroundColor: const Color(0xFF0F172A),
+            // DIVIDEND FLOW: Ex-Dividend Date + Payment Date + DPS + Auto Eligible Shares
+            if (isDividend) ...[
+              // Ex-Dividend Date selector
+              const Text(
+                'Ex-Dividend Date (Holding Cutoff)',
+                style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
               ),
-              onPressed: _pickDate,
-              icon: const Icon(Icons.calendar_today, size: 16, color: Colors.white70),
-              label: Text(
-                DateFormat('dd MMM yyyy').format(_date),
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+              const SizedBox(height: 6),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 46),
+                  alignment: Alignment.centerLeft,
+                  side: const BorderSide(color: Color(0xFF334155)),
+                  backgroundColor: const Color(0xFF0F172A),
+                ),
+                onPressed: () => _pickDate(isExDate: true),
+                icon: const Icon(Icons.event_available, size: 16, color: Color(0xFF6366F1)),
+                label: Text(
+                  DateFormat('dd MMM yyyy').format(_exDividendDate),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            // Price & Quantity (if not dividend)
-            if (_type != TransactionType.dividend) ...[
+              // Payment Date selector
+              const Text(
+                'Payment Date',
+                style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 46),
+                  alignment: Alignment.centerLeft,
+                  side: const BorderSide(color: Color(0xFF334155)),
+                  backgroundColor: const Color(0xFF0F172A),
+                ),
+                onPressed: () => _pickDate(isExDate: false),
+                icon: const Icon(Icons.payment, size: 16, color: Colors.white70),
+                label: Text(
+                  DateFormat('dd MMM yyyy').format(_date),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Dividend Per Share (DPS)
+              TextField(
+                controller: _priceCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => _calculateAmount(),
+                decoration: const InputDecoration(
+                  labelText: 'Dividend Per Share - DPS (₹)',
+                  hintText: 'e.g. 10.50',
+                  filled: true,
+                  fillColor: Color(0xFF0F172A),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Automatically Calculated Eligible Quantity Box
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _autoEligibleQty > 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Eligible Shares on Ex-Date',
+                          style: TextStyle(color: Colors.white60, fontSize: 11),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_autoEligibleQty % 1 == 0 ? _autoEligibleQty.toInt() : _autoEligibleQty} Shares',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: _autoEligibleQty > 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_autoEligibleQty <= 0)
+                      const Text(
+                        '0 holding on ex-date',
+                        style: TextStyle(color: Color(0xFFEF4444), fontSize: 11),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Automatically Calculated Total Dividend Payout
+              TextField(
+                controller: _amountCtrl,
+                readOnly: true,
+                decoration: const InputDecoration(
+                  labelText: 'Total Dividend Payout (₹) (DPS × Eligible Shares)',
+                  filled: true,
+                  fillColor: Color(0xFF0F172A),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ] else ...[
+              // TRADE FLOW: BUY / SELL
+              // Date picker
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 46),
+                  alignment: Alignment.centerLeft,
+                  side: const BorderSide(color: Color(0xFF334155)),
+                  backgroundColor: const Color(0xFF0F172A),
+                ),
+                onPressed: () => _pickDate(isExDate: false),
+                icon: const Icon(Icons.calendar_today, size: 16, color: Colors.white70),
+                label: Text(
+                  DateFormat('dd MMM yyyy').format(_date),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Price & Quantity
               Row(
                 children: [
                   Expanded(
@@ -585,21 +851,20 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 ],
               ),
               const SizedBox(height: 12),
+
+              // Total Amount
+              TextField(
+                controller: _amountCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Total Transaction Amount (₹)',
+                  filled: true,
+                  fillColor: Color(0xFF0F172A),
+                  border: OutlineInputBorder(),
+                ),
+              ),
             ],
 
-            // Total Amount
-            TextField(
-              controller: _amountCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                labelText: _type == TransactionType.dividend
-                    ? 'Dividend Payout Amount (₹)'
-                    : 'Total Transaction Amount (₹)',
-                filled: true,
-                fillColor: const Color(0xFF0F172A),
-                border: const OutlineInputBorder(),
-              ),
-            ),
             const SizedBox(height: 20),
 
             SizedBox(

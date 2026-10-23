@@ -3,10 +3,11 @@ enum TransactionType { buy, sell, dividend }
 class Transaction {
   final String id;
   final TransactionType type;
-  final DateTime date;
-  final double price;
-  final double quantity;
-  final double amount; // total amount: typically price * quantity (or dividend amount)
+  final DateTime date; // For BUY/SELL: transaction date. For DIVIDEND: payment date.
+  final double price; // For BUY/SELL: price per share. For DIVIDEND: dividend per share (DPS).
+  final double quantity; // For BUY/SELL: trade quantity. For DIVIDEND: eligible shares held before ex-date.
+  final double amount; // For BUY/SELL: price * quantity. For DIVIDEND: DPS * eligible shares.
+  final DateTime? exDividendDate; // Specific to DIVIDEND: cutoff date to be eligible for dividend.
 
   const Transaction({
     required this.id,
@@ -15,6 +16,7 @@ class Transaction {
     required this.price,
     required this.quantity,
     required this.amount,
+    this.exDividendDate,
   });
 
   String get typeLabel {
@@ -26,6 +28,27 @@ class Transaction {
       case TransactionType.dividend:
         return 'DIVIDEND';
     }
+  }
+
+  /// Copies transaction with recalculated values
+  Transaction copyWith({
+    String? id,
+    TransactionType? type,
+    DateTime? date,
+    double? price,
+    double? quantity,
+    double? amount,
+    DateTime? exDividendDate,
+  }) {
+    return Transaction(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      date: date ?? this.date,
+      price: price ?? this.price,
+      quantity: quantity ?? this.quantity,
+      amount: amount ?? this.amount,
+      exDividendDate: exDividendDate ?? this.exDividendDate,
+    );
   }
 }
 
@@ -44,13 +67,56 @@ class InvestmentCardModel {
     required this.transactions,
   });
 
-  /// Chronological verification of all transactions to guarantee:
+  /// Calculates eligible stock quantity held on or before a given ex-dividend date
+  static double getEligibleQuantityOnDate(List<Transaction> txList, DateTime exDate) {
+    // Only transactions on or strictly before the ex-dividend date count toward dividend eligibility
+    final relevantTrades = txList.where((tx) {
+      if (tx.type == TransactionType.dividend) return false;
+      // Truncate to day level comparison
+      final txDay = DateTime(tx.date.year, tx.date.month, tx.date.day);
+      final exDay = DateTime(exDate.year, exDate.month, exDate.day);
+      return !txDay.isAfter(exDay);
+    }).toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    double runningQty = 0.0;
+    for (final tx in relevantTrades) {
+      if (tx.type == TransactionType.buy) {
+        runningQty += tx.quantity;
+      } else if (tx.type == TransactionType.sell) {
+        runningQty -= tx.quantity;
+      }
+    }
+    return runningQty > 0 ? runningQty : 0.0;
+  }
+
+  /// Recomputes all dividend transactions based on current buy/sell history
+  /// Returns updated list of transactions with recalculated eligible quantities and dividend amounts
+  static List<Transaction> recalculateAllTransactions(List<Transaction> txList) {
+    final result = <Transaction>[];
+    for (final tx in txList) {
+      if (tx.type == TransactionType.dividend) {
+        final exDate = tx.exDividendDate ?? tx.date;
+        final eligibleQty = getEligibleQuantityOnDate(txList, exDate);
+        final recalculatedAmount = eligibleQty * tx.price; // price holds DPS
+        result.add(tx.copyWith(
+          quantity: eligibleQty,
+          amount: recalculatedAmount,
+        ));
+      } else {
+        result.add(tx);
+      }
+    }
+    return result;
+  }
+
+  /// Full chronological validation:
   /// 1. No SELL occurs before any BUY.
-  /// 2. Active holding quantity is never negative at any historical point in time.
+  /// 2. Active holding quantity is never negative at any historical point.
+  /// 3. Dividends cannot exist if eligible stock holding on ex-date is 0.
   static String? validateTransactions(List<Transaction> txList) {
     if (txList.isEmpty) return null;
 
-    // Sort chronologically (oldest to newest) to replay history
     final chronological = List<Transaction>.from(txList)
       ..sort((a, b) => a.date.compareTo(b.date));
 
@@ -69,6 +135,12 @@ class InvestmentCardModel {
           return 'Insufficient shares: Cannot sell ${tx.quantity} shares on ${tx.date.toString().substring(0, 10)}. You only hold $runningQty shares at that date.';
         }
         runningQty -= tx.quantity;
+      } else if (tx.type == TransactionType.dividend) {
+        final exDate = tx.exDividendDate ?? tx.date;
+        final eligibleShares = getEligibleQuantityOnDate(txList, exDate);
+        if (eligibleShares <= 0) {
+          return 'Dividend ineligible: You hold 0 shares on ex-dividend date (${exDate.toString().substring(0, 10)}). Dividend cannot exist without stock holding.';
+        }
       }
     }
     return null;
