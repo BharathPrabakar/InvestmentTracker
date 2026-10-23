@@ -4,6 +4,7 @@ This file tracks every commit made to the repository along with its commit hash,
 
 | Commit Hash | Date & Time | Short Summary | Key Details |
 |---|---|---|---|
+| `431f5f7` | 2026-10-23 22:41:39 +0530 | Dividend calculation, auto-purge & recalculation | Guaranteed cards without transactions cannot exist (auto-deleted upon deleting last transaction); built complete dividend workflow (DPS, Ex-Date, Payment Date, auto-calculated eligible shares and payout); implemented complete chronological recalculation of all portfolio and dividend values on every transaction change. |
 | `5175ed4` | 2026-10-23 22:19:44 +0530 | Indian localization (₹ and NSE/BSE) | Localized all financial amounts across the app to Indian Rupees (₹), optimized Yahoo Finance stock search to prioritize Indian exchanges (NSE `.NS` and BSE `.BO`), and updated sample holdings to Indian bluechips (RELIANCE, TCS). |
 | `70c3025` | 2026-10-23 22:00:49 +0530 | Remove outer delete & chronological validation | Removed outer card delete button and swipe-to-delete; implemented full chronological re-verification for all transactions to prevent any SELL occurring before BUY and prevent negative share quantities upon addition or deletion of any transaction. |
 | `60733e8` | 2026-10-23 21:44:34 +0530 | Compact cards, full detail screen & deletions | Compacted outside cards to basic details (Symbol, name, qty, total invested); clicking opens `InvestmentCardDetailScreen` with full stats and date-wise ledger; added card deletion (dialog + swipe) and individual transaction deletion. |
