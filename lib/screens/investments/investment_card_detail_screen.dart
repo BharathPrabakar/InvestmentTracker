@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/investment_card_model.dart';
+import '../../services/yahoo_finance_service.dart';
 
 class InvestmentCardDetailScreen extends StatefulWidget {
   final InvestmentCardModel card;
@@ -19,6 +20,27 @@ class InvestmentCardDetailScreen extends StatefulWidget {
 }
 
 class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen> {
+  double? _livePrice;
+  bool _isLoadingPrice = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchLivePrice();
+  }
+
+  Future<void> _fetchLivePrice() async {
+    setState(() {
+      _isLoadingPrice = true;
+    });
+    final price = await YahooFinanceService.fetchCurrentPrice(widget.card.symbol);
+    if (mounted) {
+      setState(() {
+        _livePrice = price;
+        _isLoadingPrice = false;
+      });
+    }
+  }
   void _confirmDeleteCard() {
     showDialog(
       context: context,
@@ -440,60 +462,135 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 const Divider(color: Color(0xFF334155)),
                 const SizedBox(height: 12),
+
+                // Live Market Price row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'Current Market Price',
+                          style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(width: 8),
+                        if (_isLoadingPrice)
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFF10B981)),
+                          )
+                        else
+                          InkWell(
+                            onTap: _fetchLivePrice,
+                            child: const Icon(Icons.refresh, size: 14, color: Color(0xFF10B981)),
+                          ),
+                      ],
+                    ),
+                    Text(
+                      _livePrice != null
+                          ? '₹${_livePrice!.toStringAsFixed(2)}'
+                          : (widget.card.latestPrice > 0
+                              ? '₹${widget.card.latestPrice.toStringAsFixed(2)} (Last)'
+                              : 'N/A'),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF10B981),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(color: Color(0xFF334155)),
+                const SizedBox(height: 12),
+
+                // 4-Card Basic Details Grid inside card: Total Investment, Realized P/L, Unrealized P/L, Total Dividends
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Total Invested', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                        const Text('Total Investment', style: TextStyle(color: Colors.white54, fontSize: 11)),
                         const SizedBox(height: 4),
                         Text(
                           '₹${widget.card.totalInvested.toStringAsFixed(2)}',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                       ],
                     ),
                     Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Total Shares', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                        const Text('Realized P/L', style: TextStyle(color: Colors.white54, fontSize: 11)),
                         const SizedBox(height: 4),
                         Text(
-                          '${widget.card.totalQuantity % 1 == 0 ? widget.card.totalQuantity.toInt() : widget.card.totalQuantity}',
-                          style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold, fontSize: 18),
+                          '${widget.card.realizedPnL >= 0 ? '+' : ''}₹${widget.card.realizedPnL.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: widget.card.realizedPnL >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
                         ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Unrealized P/L', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                        const SizedBox(height: 4),
+                        Builder(builder: (ctx) {
+                          final priceToUse = _livePrice ?? widget.card.latestPrice;
+                          final openQty = widget.card.totalQuantity;
+                          final openVal = openQty * priceToUse;
+                          final costBasis = openQty * widget.card.avgBuyPrice;
+                          final uPnL = openQty > 0 ? (openVal - costBasis) : 0.0;
+                          return Text(
+                            '${uPnL >= 0 ? '+' : ''}₹${uPnL.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: uPnL >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          );
+                        }),
                       ],
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        const Text('Avg Price', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                        const Text('Total Dividends', style: TextStyle(color: Colors.white54, fontSize: 11)),
                         const SizedBox(height: 4),
                         Text(
-                          '₹${widget.card.avgBuyPrice.toStringAsFixed(2)}',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                          '₹${widget.card.totalDividends.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: Color(0xFF6366F1),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
                         ),
                       ],
                     ),
                   ],
                 ),
-                if (widget.card.totalDividends > 0) ...[
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Total Dividends Received', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                      Text(
-                        '₹${widget.card.totalDividends.toStringAsFixed(2)}',
-                        style: const TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                    ],
-                  ),
-                ],
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Shares: ${widget.card.totalQuantity % 1 == 0 ? widget.card.totalQuantity.toInt() : widget.card.totalQuantity}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    Text(
+                      'Avg Buy Price: ₹${widget.card.avgBuyPrice.toStringAsFixed(2)}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 16),
                 const Text('Tags', style: TextStyle(color: Colors.white54, fontSize: 12)),
                 const SizedBox(height: 6),

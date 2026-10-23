@@ -84,4 +84,35 @@ class YahooFinanceService {
     }
     return [];
   }
+
+  /// Fetches the latest live market price for a given stock symbol via Yahoo Finance
+  static Future<double?> fetchCurrentPrice(String symbol) async {
+    final cleanSymbol = symbol.trim();
+    if (cleanSymbol.isEmpty) return null;
+
+    try {
+      final uri = Uri.parse('https://query1.finance.yahoo.com/v8/finance/chart/${Uri.encodeComponent(cleanSymbol)}?interval=1d&range=1d');
+      final response = await http.get(
+        uri,
+        headers: {
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final result = (data['chart']?['result'] as List<dynamic>?)?.firstOrNull as Map<String, dynamic>?;
+        final meta = result?['meta'] as Map<String, dynamic>?;
+        final price = meta?['regularMarketPrice'];
+        if (price is num) {
+          return price.toDouble();
+        }
+      }
+    } catch (_) {
+      // Silently fall back if network is offline or throttled
+    }
+    return null;
+  }
 }
