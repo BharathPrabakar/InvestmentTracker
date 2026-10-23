@@ -25,6 +25,8 @@ InvestmentTracker/
 | File Path | Description & Contents | When to Touch |
 |---|---|---|
 | [`lib/main.dart`](file:///C:/InvestmentTracker/lib/main.dart) | Contains `InvestmentTrackerApp`, `MainMobileScreen` (Bottom `NavigationBar` controller), and placeholder routes. | Only when adjusting root theme, main navigation tabs, or switching root routes. |
+| [`lib/models/stock_holding.dart`](file:///C:/InvestmentTracker/lib/models/stock_holding.dart) | Data model for a stock holding with computed properties (gain/loss, value, percentage). | When adding new stock attributes or metrics. |
+| [`lib/screens/investments/investments_screen.dart`](file:///C:/InvestmentTracker/lib/screens/investments/investments_screen.dart) | Main investments mobile UI: portfolio card, holdings list, swipe-to-delete, and add stock bottom sheet. | When modifying the stock investment screen UX. |
 | [`AGENTS.md`](file:///C:/InvestmentTracker/AGENTS.md) | Agent rules, dead code deletion mandate, design standards. | When updating workspace rules or core constraints. |
 | [`ARCHITECTURE.md`](file:///C:/InvestmentTracker/ARCHITECTURE.md) | Map of all files, their contents, and token-saving index. | **Update whenever a new file/module is added, moved, or deleted.** |
 | [`COMMITS.md`](file:///C:/InvestmentTracker/COMMITS.md) | Log of every git commit ID, timestamp, and summary. | **Update with every git commit.** |

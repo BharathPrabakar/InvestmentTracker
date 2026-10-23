@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'screens/investments/investments_screen.dart';
 
 void main() {
   runApp(const InvestmentTrackerApp());
@@ -41,7 +42,7 @@ class _MainMobileScreenState extends State<MainMobileScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = const [
-    ScreenPlaceholder(title: 'Investments'),
+    InvestmentScreen(),
     ScreenPlaceholder(title: 'Analytics'),
   ];
 
