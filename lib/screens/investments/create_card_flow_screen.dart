@@ -232,7 +232,7 @@ class _CreateCardFlowScreenState extends State<CreateCardFlowScreen> {
             controller: _searchCtrl,
             onChanged: _onSearchChanged,
             decoration: InputDecoration(
-              hintText: 'Search ticker (e.g. AAPL, TSLA, INFY)...',
+              hintText: 'Search stock (e.g. RELIANCE, TCS, INFY, HDFCBANK)...',
               prefixIcon: const Icon(Icons.search, color: Colors.white54),
               suffixIcon: _isSearching
                   ? const SizedBox(
@@ -523,7 +523,7 @@ class _CreateCardFlowScreenState extends State<CreateCardFlowScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Stock Price (\$)',
+                        'Stock Price (₹)',
                         style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600, fontSize: 13),
                       ),
                       const SizedBox(height: 6),
@@ -571,7 +571,7 @@ class _CreateCardFlowScreenState extends State<CreateCardFlowScreen> {
 
             // Total Amount
             const Text(
-              'Total Amount (\$)',
+              'Total Amount (₹)',
               style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600, fontSize: 13),
             ),
             const SizedBox(height: 6),

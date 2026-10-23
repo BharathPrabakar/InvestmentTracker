@@ -223,7 +223,7 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
                         const Text('Total Invested', style: TextStyle(color: Colors.white54, fontSize: 12)),
                         const SizedBox(height: 4),
                         Text(
-                          '\$${widget.card.totalInvested.toStringAsFixed(2)}',
+                          '₹${widget.card.totalInvested.toStringAsFixed(2)}',
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
                         ),
                       ],
@@ -245,7 +245,7 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
                         const Text('Avg Price', style: TextStyle(color: Colors.white54, fontSize: 12)),
                         const SizedBox(height: 4),
                         Text(
-                          '\$${widget.card.avgBuyPrice.toStringAsFixed(2)}',
+                          '₹${widget.card.avgBuyPrice.toStringAsFixed(2)}',
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
                         ),
                       ],
@@ -353,14 +353,14 @@ class _InvestmentCardDetailScreenState extends State<InvestmentCardDetailScreen>
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${tx.quantity % 1 == 0 ? tx.quantity.toInt() : tx.quantity} shares @ \$${tx.price.toStringAsFixed(2)}',
+                          '${tx.quantity % 1 == 0 ? tx.quantity.toInt() : tx.quantity} shares @ ₹${tx.price.toStringAsFixed(2)}',
                           style: const TextStyle(fontSize: 11, color: Colors.white54),
                         ),
                       ],
                     ),
                     const Spacer(),
                     Text(
-                      '\$${tx.amount.toStringAsFixed(2)}',
+                      '₹${tx.amount.toStringAsFixed(2)}',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
                     ),
                     const SizedBox(width: 8),
@@ -561,7 +561,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       onChanged: (_) => _calculateAmount(),
                       decoration: const InputDecoration(
-                        labelText: 'Price (\$)',
+                        labelText: 'Price (₹)',
                         filled: true,
                         fillColor: Color(0xFF0F172A),
                         border: OutlineInputBorder(),
@@ -593,8 +593,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
                 labelText: _type == TransactionType.dividend
-                    ? 'Dividend Payout Amount (\$)'
-                    : 'Total Transaction Amount (\$)',
+                    ? 'Dividend Payout Amount (₹)'
+                    : 'Total Transaction Amount (₹)',
                 filled: true,
                 fillColor: const Color(0xFF0F172A),
                 border: const OutlineInputBorder(),

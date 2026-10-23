@@ -39,7 +39,7 @@ class YahooFinanceService {
     if (cleanQuery.isEmpty) return [];
 
     try {
-      final uri = Uri.parse('$_baseUrl?q=${Uri.encodeComponent(cleanQuery)}&quotesCount=10&newsCount=0');
+      final uri = Uri.parse('$_baseUrl?q=${Uri.encodeComponent(cleanQuery)}&quotesCount=15&newsCount=0');
       final response = await http.get(
         uri,
         headers: {
@@ -53,7 +53,7 @@ class YahooFinanceService {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final quotes = data['quotes'] as List<dynamic>? ?? [];
 
-        return quotes
+        final results = quotes
             .map((q) => YahooStockSearchResult.fromJson(q as Map<String, dynamic>))
             .where((item) =>
                 item.symbol.isNotEmpty &&
@@ -61,6 +61,23 @@ class YahooFinanceService {
                     item.quoteType == 'ETF' ||
                     item.quoteType.isEmpty))
             .toList();
+
+        // Prioritize Indian stock market equities (NSE / BSE) first
+        results.sort((a, b) {
+          final aIsIndian = a.symbol.endsWith('.NS') ||
+              a.symbol.endsWith('.BO') ||
+              a.exchange == 'NSI' ||
+              a.exchange == 'BSE';
+          final bIsIndian = b.symbol.endsWith('.NS') ||
+              b.symbol.endsWith('.BO') ||
+              b.exchange == 'NSI' ||
+              b.exchange == 'BSE';
+          if (aIsIndian && !bIsIndian) return -1;
+          if (!aIsIndian && bIsIndian) return 1;
+          return 0;
+        });
+
+        return results;
       }
     } catch (_) {
       // In case of network timeout or error, return empty list gracefully

@@ -14,33 +14,33 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
   final List<InvestmentCardModel> _investmentCards = [
     InvestmentCardModel(
       id: '1',
-      symbol: 'AAPL',
-      companyName: 'Apple Inc.',
-      tags: ['Tech', 'Long-term', 'Bluechip'],
+      symbol: 'RELIANCE.NS',
+      companyName: 'Reliance Industries Limited',
+      tags: ['Energy', 'Bluechip', 'Nifty50'],
       transactions: [
         Transaction(
           id: 'tx_1',
           type: TransactionType.buy,
           date: DateTime.now().subtract(const Duration(days: 30)),
-          price: 180.0,
+          price: 2850.0,
           quantity: 10.0,
-          amount: 1800.0,
+          amount: 28500.0,
         ),
       ],
     ),
     InvestmentCardModel(
       id: '2',
-      symbol: 'NVDA',
-      companyName: 'NVIDIA Corporation',
-      tags: ['AI', 'High Growth', 'Semiconductors'],
+      symbol: 'TCS.NS',
+      companyName: 'Tata Consultancy Services',
+      tags: ['IT', 'Tata Group', 'Dividend'],
       transactions: [
         Transaction(
           id: 'tx_2',
           type: TransactionType.buy,
           date: DateTime.now().subtract(const Duration(days: 14)),
-          price: 110.0,
-          quantity: 15.0,
-          amount: 1650.0,
+          price: 4120.0,
+          quantity: 5.0,
+          amount: 20600.0,
         ),
       ],
     ),
@@ -173,7 +173,7 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '\$${card.totalInvested.toStringAsFixed(2)}',
+                    '₹${card.totalInvested.toStringAsFixed(2)}',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
                   ),
                   const SizedBox(height: 2),
