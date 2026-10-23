@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/investment_card_model.dart';
 import 'create_card_flow_screen.dart';
+import 'investment_card_detail_screen.dart';
 
 class InvestmentScreen extends StatefulWidget {
   const InvestmentScreen({super.key});
@@ -66,21 +67,51 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
     }
   }
 
-  void _openAddTransactionModal(InvestmentCardModel card) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E293B),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+  void _openCardDetail(InvestmentCardModel card) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (ctx) => InvestmentCardDetailScreen(
+          card: card,
+          onCardDeleted: () {
+            setState(() {
+              _investmentCards.remove(card);
+            });
+          },
+          onStateChanged: () {
+            setState(() {});
+          },
+        ),
       ),
-      builder: (ctx) => AddTransactionSheet(
-        card: card,
-        onTransactionAdded: (tx) {
-          setState(() {
-            card.transactions.add(tx);
-          });
-        },
+    );
+  }
+
+  void _confirmDeleteCard(InvestmentCardModel card) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('Delete Investment Card?', style: TextStyle(color: Colors.white)),
+        content: Text(
+          'Delete ${card.symbol} and its transaction history?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+            onPressed: () {
+              setState(() {
+                _investmentCards.remove(card);
+              });
+              Navigator.pop(ctx);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
@@ -114,174 +145,101 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
               ),
             )
           else
-            ..._investmentCards.map((card) => _buildInvestmentCard(card)),
+            ..._investmentCards.map((card) => _buildBasicCard(card)),
           const SizedBox(height: 70), // padding for FAB
         ],
       ),
     );
   }
 
-  Widget _buildInvestmentCard(InvestmentCardModel card) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF334155)),
+  /// Compact outside card showing ONLY basic details (Symbol, Name, Qty, Total Invested, Delete)
+  Widget _buildBasicCard(InvestmentCardModel card) {
+    return Dismissible(
+      key: Key(card.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEF4444),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
       ),
-      child: ExpansionTile(
-        initiallyExpanded: true,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        childrenPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        shape: const Border(),
-        leading: CircleAvatar(
-          backgroundColor: const Color(0xFF0F172A),
-          child: Text(
-            card.symbol.length > 3 ? card.symbol.substring(0, 3) : card.symbol,
-            style: const TextStyle(
-              color: Color(0xFF10B981),
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
+      onDismissed: (_) {
+        setState(() {
+          _investmentCards.remove(card);
+        });
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF334155)),
         ),
-        title: Row(
-          children: [
-            Text(
-              card.symbol,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-            ),
-            const Spacer(),
-            Text(
-              '\$${card.totalInvested.toStringAsFixed(2)}',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-            ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 2),
-            Text(
-              card.companyName,
-              style: const TextStyle(color: Colors.white54, fontSize: 13),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 6),
-            Row(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => _openCardDetail(card),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
               children: [
-                Text(
-                  '${card.totalQuantity % 1 == 0 ? card.totalQuantity.toInt() : card.totalQuantity} Qty',
-                  style: const TextStyle(color: Color(0xFF10B981), fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '• Avg: \$${card.avgBuyPrice.toStringAsFixed(2)}',
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
-                ),
-              ],
-            ),
-            if (card.tags.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: card.tags
-                    .map(
-                      (tag) => Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: const Color(0xFF334155)),
-                        ),
-                        child: Text(
-                          '#$tag',
-                          style: const TextStyle(fontSize: 11, color: Colors.white70),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ],
-          ],
-        ),
-        children: [
-          const Divider(color: Color(0xFF334155)),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Transactions (Date-wise)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white70),
-              ),
-              TextButton.icon(
-                onPressed: () => _openAddTransactionModal(card),
-                icon: const Icon(Icons.add, size: 16, color: Color(0xFF10B981)),
-                label: const Text('Add Txn', style: TextStyle(color: Color(0xFF10B981), fontSize: 12)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ...card.sortedTransactions.map((tx) {
-            final isBuy = tx.type == TransactionType.buy;
-            final isSell = tx.type == TransactionType.sell;
-            final dateStr = DateFormat('MMM dd, yyyy').format(tx.date);
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: (isBuy
-                              ? const Color(0xFF10B981)
-                              : (isSell ? const Color(0xFFEF4444) : const Color(0xFF6366F1)))
-                          .withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      tx.typeLabel,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: isBuy
-                            ? const Color(0xFF10B981)
-                            : (isSell ? const Color(0xFFEF4444) : const Color(0xFF6366F1)),
-                      ),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: const Color(0xFF0F172A),
+                  child: Text(
+                    card.symbol.length > 3 ? card.symbol.substring(0, 3) : card.symbol,
+                    style: const TextStyle(
+                      color: Color(0xFF10B981),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Text(
-                    dateStr,
-                    style: const TextStyle(fontSize: 12, color: Colors.white54),
-                  ),
-                  const Spacer(),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '\$${tx.amount.toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                        card.symbol,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
                       ),
+                      const SizedBox(height: 2),
                       Text(
-                        '${tx.quantity % 1 == 0 ? tx.quantity.toInt() : tx.quantity} @ \$${tx.price.toStringAsFixed(2)}',
-                        style: const TextStyle(fontSize: 11, color: Colors.white38),
+                        card.companyName,
+                        style: const TextStyle(color: Colors.white54, fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-                ],
-              ),
-            );
-          }),
-        ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '\$${card.totalInvested.toStringAsFixed(2)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${card.totalQuantity % 1 == 0 ? card.totalQuantity.toInt() : card.totalQuantity} Shares',
+                      style: const TextStyle(color: Color(0xFF10B981), fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white30),
+                  onPressed: () => _confirmDeleteCard(card),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
