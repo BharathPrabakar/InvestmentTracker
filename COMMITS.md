@@ -4,6 +4,7 @@ This file tracks every commit made to the repository along with its commit hash,
 
 | Commit Hash | Date & Time | Short Summary | Key Details |
 |---|---|---|---|
+| `60733e8` | 2026-10-23 21:44:34 +0530 | Compact cards, full detail screen & deletions | Compacted outside cards to basic details (Symbol, name, qty, total invested); clicking opens `InvestmentCardDetailScreen` with full stats and date-wise ledger; added card deletion (dialog + swipe) and individual transaction deletion. |
 | `aeec144` | 2026-10-23 21:26:40 +0530 | Multi-step card creation & duplicate prevention | Removed top tag bar; created clean 3-step page flow for card creation (Step 1: Select stock with duplicate-prevention, Step 2: Enter tags, Step 3: Initial BUY transaction). |
 | `b65ca72` | 2026-10-23 21:16:45 +0530 | Investment cards, Yahoo search & Tx ledger | Implemented Yahoo Finance API stock search service, taggable investment cards with multi-tag filtering, card creation flow with initial BUY transaction (date, price, qty, total amount), and date-wise transaction ledger supporting Buy/Sell/Dividend. |
 | `9ffc9a8` | 2026-10-23 20:55:30 +0530 | Add stock section in Investments | Added `StockHolding` model and mobile `InvestmentScreen` featuring stocks summary card (invested, current value, returns), holdings list, swipe-to-delete, and add-stock modal bottom sheet. |
