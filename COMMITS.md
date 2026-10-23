@@ -4,6 +4,7 @@ This file tracks every commit made to the repository along with its commit hash,
 
 | Commit Hash | Date & Time | Short Summary | Key Details |
 |---|---|---|---|
+| `28e6de1` | 2026-10-23 23:00:59 +0530 | Outer card metrics & single tag edit option | Enhanced outside cards with 4 key metrics: Total Investment, Realized P/L, Unrealized P/L, and Total Dividends; consolidated tag editing into a single clean top bar option in the detail screen. |
 | `f68faca` | 2026-10-23 22:54:35 +0530 | Edit tags, edit transactions & strictly-before ex-date | Updated dividend rule so shares bought on ex-date are not eligible (must be strictly before ex-date); added interactive tag editing dialog for investment cards; added edit mode for all transactions (Buy/Sell/Dividend) with full chronological validation and automatic recalculation. |
 | `431f5f7` | 2026-10-23 22:41:39 +0530 | Dividend calculation, auto-purge & recalculation | Guaranteed cards without transactions cannot exist (auto-deleted upon deleting last transaction); built complete dividend workflow (DPS, Ex-Date, Payment Date, auto-calculated eligible shares and payout); implemented complete chronological recalculation of all portfolio and dividend values on every transaction change. |
 | `5175ed4` | 2026-10-23 22:19:44 +0530 | Indian localization (₹ and NSE/BSE) | Localized all financial amounts across the app to Indian Rupees (₹), optimized Yahoo Finance stock search to prioritize Indian exchanges (NSE `.NS` and BSE `.BO`), and updated sample holdings to Indian bluechips (RELIANCE, TCS). |
